@@ -1,34 +1,41 @@
 import torch
 import torch.nn as nn
 
-from tokenizer import encode, vocab_size
+from tokenizer import encode, decode, VOCAB_SIZE
 
 
 # ============================================================
-# Configuration
+# Model configuration
 # ============================================================
 
-EMBEDDING_DIM = 32
-MAX_CONTEXT_LENGTH = 8
+EMBEDDING_DIM = 128
+CONTEXT_LENGTH = 128
 
 
 # ============================================================
 # Token + Position Embedding
 # ============================================================
 
-class InputEmbedding(nn.Module):
+class TokenAndPositionEmbedding(nn.Module):
 
     def __init__(
         self,
         vocab_size: int,
         embedding_dim: int,
-        max_context_length: int
+        context_length: int
     ):
         super().__init__()
 
         # ----------------------------------------------------
-        # Token embedding table 
-        # Shape: [vocab_size, embedding_dim] [19*32]
+        # Token embedding table
+        #
+        # One row for every token in the vocabulary.
+        #
+        # Shape:
+        # [vocab_size, embedding_dim]
+        #
+        # Here:
+        # [50257, 128]
         # ----------------------------------------------------
 
         self.token_embedding = nn.Embedding(
@@ -38,15 +45,22 @@ class InputEmbedding(nn.Module):
 
         # ----------------------------------------------------
         # Position embedding table
-        # Shape: [max_context_length, embedding_dim] [8*32]
+        #
+        # One row for every possible position.
+        #
+        # Shape:
+        # [context_length, embedding_dim]
+        #
+        # Here:
+        # [128, 128]
         # ----------------------------------------------------
 
         self.position_embedding = nn.Embedding(
-            max_context_length,
+            context_length,
             embedding_dim
         )
 
-        self.max_context_length = max_context_length
+        self.context_length = context_length
 
 
     # ========================================================
@@ -55,20 +69,19 @@ class InputEmbedding(nn.Module):
 
     def forward(self, input_ids: torch.Tensor) -> torch.Tensor:
 
-        # input_ids shape:
+        # input_ids:
         # [B, T]
 
         batch_size, sequence_length = input_ids.shape
 
         # ----------------------------------------------------
-        # Make sure sequence isn't longer than our context
+        # Make sure sequence fits inside context window
         # ----------------------------------------------------
 
-        if sequence_length > self.max_context_length:
+        if sequence_length > self.context_length:
             raise ValueError(
-                f"Sequence length {sequence_length} "
-                f"exceeds maximum context length "
-                f"{self.max_context_length}"
+                f"Sequence length ({sequence_length}) exceeds "
+                f"context length ({self.context_length})"
             )
 
         # ----------------------------------------------------
@@ -91,15 +104,17 @@ class InputEmbedding(nn.Module):
 
         # Shape:
         # [T]
-        #
+
         # Example:
-        # [0, 1, 2, 3, ...]
+        # [0, 1, 2, 3, ..., 127]
 
         # ----------------------------------------------------
         # Position embeddings
         # ----------------------------------------------------
 
-        position_embeddings = self.position_embedding(positions)
+        position_embeddings = self.position_embedding(
+            positions
+        )
 
         # Shape:
         # [T, D]
@@ -117,16 +132,16 @@ class InputEmbedding(nn.Module):
 
 
 # ============================================================
-# Test the complete Phase 2 pipeline
+# Test the Phase 1 → Phase 2 pipeline
 # ============================================================
 
 if __name__ == "__main__":
 
     # --------------------------------------------------------
-    # 1. Start with normal text
+    # 1. Raw text
     # --------------------------------------------------------
 
-    sample_text = "The dog"
+    sample_text = "The judge was"
 
     print("RAW TEXT")
     print("--------")
@@ -134,7 +149,7 @@ if __name__ == "__main__":
 
 
     # --------------------------------------------------------
-    # 2. Use Phase 1 tokenizer
+    # 2. Phase 1: BPE tokenization
     # --------------------------------------------------------
 
     token_ids = encode(sample_text)
@@ -145,7 +160,14 @@ if __name__ == "__main__":
 
 
     # --------------------------------------------------------
-    # 3. Convert list into PyTorch tensor
+    # 3. Convert token IDs to tensor
+    # --------------------------------------------------------
+    #
+    # We add an outer list because the model expects:
+    #
+    # [B, T]
+    #
+    # Here B = 1
     # --------------------------------------------------------
 
     input_ids = torch.tensor(
@@ -161,13 +183,13 @@ if __name__ == "__main__":
 
 
     # --------------------------------------------------------
-    # 4. Create embedding layer
+    # 4. Create embedding module
     # --------------------------------------------------------
 
-    embedding_layer = InputEmbedding(
-        vocab_size=vocab_size,
+    embedding = TokenAndPositionEmbedding(
+        vocab_size=VOCAB_SIZE,
         embedding_dim=EMBEDDING_DIM,
-        max_context_length=MAX_CONTEXT_LENGTH
+        context_length=CONTEXT_LENGTH
     )
 
 
@@ -175,10 +197,28 @@ if __name__ == "__main__":
     # 5. Forward pass
     # --------------------------------------------------------
 
-    x = embedding_layer(input_ids)
+    x = embedding(input_ids)
 
-    print("\nFINAL TRANSFORMER INPUT X")
-    print("-------------------------")
+    print("\nFINAL X")
+    print("-------")
     print(x)
 
     print("\nX shape:", x.shape)
+
+
+    # --------------------------------------------------------
+    # 6. Print component shapes
+    # --------------------------------------------------------
+
+    print("\nEMBEDDING TABLE SHAPES")
+    print("----------------------")
+
+    print(
+        "Token embedding table:",
+        embedding.token_embedding.weight.shape
+    )
+
+    print(
+        "Position embedding table:",
+        embedding.position_embedding.weight.shape
+    )

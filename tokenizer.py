@@ -1,116 +1,92 @@
 from pathlib import Path
 
-
-# ============================================================
-# 1. Load raw text
-# ============================================================
-
-text_path = Path("data/input.txt")
-
-text = text_path.read_text(encoding="utf-8")
-
-print("RAW TEXT")
-print("--------")
-print(text)
+import tiktoken
 
 
 # ============================================================
-# 2. Build vocabulary
+# Configuration
 # ============================================================
 
-# Every unique character becomes a token.
-# sorted() gives us a deterministic ordering.
-vocab = sorted(set(text))
+DATA_PATH = Path("data/the-verdict.txt")
 
-vocab_size = len(vocab)
-
-print("\nVOCABULARY")
-print("----------")
-print(vocab)
-
-print("\nVocabulary size:", vocab_size)
+# GPT-2 compatible BPE tokenizer
+ENCODER = tiktoken.get_encoding("gpt2")
 
 
 # ============================================================
-# 3. Character -> Token ID
+# Load dataset
 # ============================================================
 
-stoi = {
-    character: index
-    for index, character in enumerate(vocab)
-}
-
-print("\nCHARACTER -> TOKEN ID")
-print("---------------------")
-
-for character, token_id in stoi.items():
-    print(repr(character), "->", token_id)
+text = DATA_PATH.read_text(encoding="utf-8")
 
 
 # ============================================================
-# 4. Token ID -> Character
+# Tokenizer information
 # ============================================================
 
-itos = {
-    token_id: character
-    for character, token_id in stoi.items()
-}
+VOCAB_SIZE = ENCODER.n_vocab
 
-print("\nTOKEN ID -> CHARACTER")
-print("---------------------")
 
-for token_id, character in itos.items():
-    print(token_id, "->", repr(character))
+print("Tokenizer:", ENCODER.name)
+print("Vocabulary size:", VOCAB_SIZE)
+print("Text characters:", len(text))
 
 
 # ============================================================
-# 5. Encoder
+# Encode
 # ============================================================
 
 def encode(text: str) -> list[int]:
     """
-    Convert text into token IDs.
-
-    Example:
-        "dog"
-        -> [6, 16, 9]
+    Convert text into GPT-2 BPE token IDs.
     """
 
-    return [stoi[character] for character in text]
+    return ENCODER.encode(text)
 
 
 # ============================================================
-# 6. Decoder
+# Decode
 # ============================================================
 
 def decode(token_ids: list[int]) -> str:
     """
-    Convert token IDs back into text.
-
-    Example:
-        [6, 16, 9]
-        -> "dog"
+    Convert GPT-2 BPE token IDs back into text.
     """
 
-    return "".join(
-        itos[token_id]
-        for token_id in token_ids
-    )
+    return ENCODER.decode(token_ids)
 
 
 # ============================================================
-# Test the tokenizer
+# Test
 # ============================================================
 
 if __name__ == "__main__":
 
-    sample_text = "dog"
+    sample_text = "The cat sat on the mat."
 
     token_ids = encode(sample_text)
 
-    print("\nTEST")
-    print("----")
+    print("\nSample text:")
+    print(sample_text)
 
-    print("Original text :", sample_text)
-    print("Token IDs     :", token_ids)
-    print("Decoded text  :", decode(token_ids))
+    print("\nToken IDs:")
+    print(token_ids)
+
+    print("\nNumber of tokens:")
+    print(len(token_ids))
+
+    print("\nDecoded text:")
+    print(decode(token_ids))
+
+    full_token_ids = encode(text)
+
+    print("\nFull dataset")
+    print("------------")
+    print("Characters:", len(text))
+    print("Tokens:", len(full_token_ids))
+
+    print("\nFirst 30 token IDs:")
+    print(full_token_ids[:30])
+
+    print("\nFirst 30 tokens decoded:")
+    print(repr(decode(full_token_ids[:30])))
